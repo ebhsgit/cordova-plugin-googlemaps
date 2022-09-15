@@ -186,7 +186,10 @@ public class PluginMap extends MyPlugin implements OnMarkerClickListener,
       }
 
 
-      if (controls.has("myLocationButton") || controls.has("myLocation")) {
+      if (
+              ( controls.has("myLocationButton") && controls.getBoolean("myLocationButton") )
+              || ( controls.has("myLocation") && controls.getBoolean("myLocation") )
+      ) {
 
         // Request geolocation permission.
         boolean locationPermission = PermissionChecker.checkSelfPermission(cordova.getActivity(), Manifest.permission.ACCESS_COARSE_LOCATION) == PermissionChecker.PERMISSION_GRANTED;
@@ -903,6 +906,7 @@ public class PluginMap extends MyPlugin implements OnMarkerClickListener,
   }
 
 
+  @SuppressLint("WrongConstant")
   @TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR1)
   @Override
   public View getInfoContents(Marker marker) {
@@ -1829,31 +1833,38 @@ public class PluginMap extends MyPlugin implements OnMarkerClickListener,
 
     final JSONObject params = args.getJSONObject(0);
 
-    boolean locationPermission = PermissionChecker.checkSelfPermission(cordova.getActivity(), Manifest.permission.ACCESS_COARSE_LOCATION) == PermissionChecker.PERMISSION_GRANTED;
-    //Log.d(TAG, "---> setMyLocationEnabled, hasPermission =  " + locationPermission);
+    final boolean isMyLocationEnabled = params.optBoolean("myLocation", false);
+    final boolean isMyLocationButtonEnabled = params.optBoolean("myLocationButton", false);
 
-    if (!locationPermission) {
-      //_saveArgs = args;
-      //_saveCallbackContext = callbackContext;
-      synchronized (semaphore) {
-        cordova.requestPermissions(this, callbackContext.hashCode(), new String[]{
-            Manifest.permission.ACCESS_FINE_LOCATION
-        });
-        try {
-          semaphore.wait();
-        } catch (InterruptedException e) {
-          e.printStackTrace();
-        }
-      }
-      locationPermission = PermissionChecker.checkSelfPermission(cordova.getActivity(), Manifest.permission.ACCESS_FINE_LOCATION) == PermissionChecker.PERMISSION_GRANTED;
-
-      //Log.d(TAG, "---> (1720)setMyLocationEnabled, hasPermission =  " + locationPermission);
+    final boolean requireLocationPermission = isMyLocationEnabled || isMyLocationButtonEnabled;
+    if(requireLocationPermission) {
+      boolean locationPermission = PermissionChecker.checkSelfPermission(cordova.getActivity(), Manifest.permission.ACCESS_COARSE_LOCATION) == PermissionChecker.PERMISSION_GRANTED;
+      //Log.d(TAG, "---> setMyLocationEnabled, hasPermission =  " + locationPermission);
 
       if (!locationPermission) {
-        callbackContext.error(PluginUtil.getPgmStrings(activity,"pgm_location_rejected_by_user"));
-        return;
-      }
+        //_saveArgs = args;
+        //_saveCallbackContext = callbackContext;
+        synchronized (semaphore) {
+          cordova.requestPermissions(this, callbackContext.hashCode(), new String[]{
+                  Manifest.permission.ACCESS_FINE_LOCATION
+          });
+          try {
+            semaphore.wait();
+          }
+          catch (InterruptedException e) {
+            e.printStackTrace();
+          }
+        }
+        locationPermission = PermissionChecker.checkSelfPermission(cordova.getActivity(), Manifest.permission.ACCESS_FINE_LOCATION) == PermissionChecker.PERMISSION_GRANTED;
 
+        //Log.d(TAG, "---> (1720)setMyLocationEnabled, hasPermission =  " + locationPermission);
+
+        if (!locationPermission) {
+          callbackContext.error(PluginUtil.getPgmStrings(activity, "pgm_location_rejected_by_user"));
+          return;
+        }
+
+      }
     }
 
     this.activity.runOnUiThread(new Runnable() {
@@ -1861,20 +1872,9 @@ public class PluginMap extends MyPlugin implements OnMarkerClickListener,
       @Override
       public void run() {
         try {
-
-          Boolean isMyLocationEnabled = false;
-          if (params.has("myLocation")) {
-            //Log.d(TAG, "--->myLocation = " + params.getBoolean("myLocation"));
-            isMyLocationEnabled = params.getBoolean("myLocation");
             map.setMyLocationEnabled(isMyLocationEnabled);
-          }
-
-          Boolean isMyLocationButtonEnabled = false;
-          if (params.has("myLocationButton")) {
-            //Log.d(TAG, "--->myLocationButton = " + params.getBoolean("myLocationButton"));
-            isMyLocationButtonEnabled = params.getBoolean("myLocationButton");
             map.getUiSettings().setMyLocationButtonEnabled(isMyLocationButtonEnabled);
-          }
+
           //Log.d(TAG, "--->isMyLocationButtonEnabled = " + isMyLocationButtonEnabled + ", isMyLocationEnabled = " + isMyLocationEnabled);
           if (!isMyLocationEnabled && isMyLocationButtonEnabled) {
             dummyMyLocationButton.setVisibility(View.VISIBLE);
